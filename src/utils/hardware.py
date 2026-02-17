@@ -1,7 +1,9 @@
+import os
 import logging
 import platform
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,40 @@ class DeviceProfile:
     description: str
 
 class HardwareManager:
+    @staticmethod
+    def _get_hip_sdk_path() -> str | None:
+        """Returns the path to the HIP SDK if feasible, or None."""
+        # 1. Common env vars for HIP/ROCm on Windows
+        candidates = ["HIP_PATH", "AMD_HIP_PATH", "ROCM_PATH"]
+        for env in candidates:
+             val = os.environ.get(env)
+             if val and os.path.isdir(val):
+                 return val
+        
+        # 2. Check default install location: C:\Program Files\AMD\ROCm\*\bin
+        # We need the root, not bin, but bin helps confirm.
+        try:
+            default_root = Path(r"C:\Program Files\AMD\ROCm")
+            if default_root.exists():
+                # Find highest version folder
+                versions = [p for p in default_root.iterdir() if p.is_dir()]
+                if versions:
+                    # Sort by name (usually works for 5.5, 5.7 etc) -> pick last
+                    versions.sort(key=lambda p: p.name)
+                    latest = versions[-1]
+                    # Check if 'bin' exists inside
+                    if (latest / "bin").exists():
+                        return str(latest)
+        except Exception as e:
+            logger.warning(f"Error checking default HIP paths: {e}")
+
+        return None
+
+    @staticmethod
+    def is_hip_available() -> bool:
+        """Checks if AMD HIP SDK appears to be installed."""
+        return HardwareManager._get_hip_sdk_path() is not None
+
     @staticmethod
     def get_profile() -> DeviceProfile:
         device_type = "cpu"
@@ -69,23 +105,31 @@ class HardwareManager:
                  for video in w.Win32_VideoController():
                      name = video.Name
                      # Check for AMD/NVIDIA
+                     # Check for AMD/NVIDIA
                      if "AMD" in name or "Radeon" in name:
-                          return DeviceProfile(
-                              device_type="cpu", 
-                              vram_gb=0, 
-                              recommended_model="small", 
-                              recommended_compute="int8", 
-                              description=f"Detected: {name} - (No ROCm/CUDA -> Using CPU Mode)"
-                          )
+                         desc = f"Detected: {name}"
+                         # Check for HIP presence
+                         if HardwareManager.is_hip_available():
+                             desc += " (HIP SDK Detected)"
+                         else:
+                             desc += " (No ROCm/HIP SDK Found)"
+
+                         return DeviceProfile(
+                             device_type="cpu", 
+                             vram_gb=0, 
+                             recommended_model="small", 
+                             recommended_compute="int8", 
+                             description=desc
+                         )
                      elif "NVIDIA" in name:
-                          # This implies we failed to detect it via ctranslate2/torch
-                          return DeviceProfile(
-                              device_type="cpu", 
-                              vram_gb=0, 
-                              recommended_model="small", 
-                              recommended_compute="int8", 
-                              description=f"Detected: {name} - (Driver Issue -> Using CPU Mode)"
-                          )
+                         # This implies we failed to detect it via ctranslate2/torch
+                         return DeviceProfile(
+                             device_type="cpu", 
+                             vram_gb=0, 
+                             recommended_model="small", 
+                             recommended_compute="int8", 
+                             description=f"Detected: {name} - (Driver Issue -> Using CPU Mode)"
+                         )
              except Exception as e:
                  logger.warning(f"WMI check failed: {e}")
 

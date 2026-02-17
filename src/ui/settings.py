@@ -102,8 +102,12 @@ class SettingsDialog(QDialog):
         # Checkboxes
         self.check_autostart = QCheckBox("Start with Windows")
         self.check_hallucination = QCheckBox("Smart Filtering (Remove 'Thanks for watching' etc.)")
+        self.check_amd_hip = QCheckBox("Enable Experimental AMD HIP Support")
+        self.check_amd_hip.setToolTip("Requires AMD HIP SDK installed. May cause instability. App will fallback to CPU if initialization fails.")
+        
         layout.addWidget(self.check_autostart)
         layout.addWidget(self.check_hallucination)
+        layout.addWidget(self.check_amd_hip)
         
         # Advanced / Vocab
         layout.addWidget(QLabel("Custom Vocabulary / Context:"))
@@ -300,6 +304,7 @@ class SettingsDialog(QDialog):
         # Booleans
         self.check_autostart.setChecked(cfg.autostart)
         self.check_hallucination.setChecked(cfg.hallucination_filter)
+        self.check_amd_hip.setChecked(getattr(cfg, "enable_amd_hip", False))
         
         # Prompt
         if cfg.initial_prompt:
@@ -339,6 +344,7 @@ class SettingsDialog(QDialog):
         # Booleans
         cfg.autostart = self.check_autostart.isChecked()
         cfg.hallucination_filter = self.check_hallucination.isChecked()
+        cfg.enable_amd_hip = self.check_amd_hip.isChecked()
         
         # Prompt
         prompt = self.text_prompt.toPlainText().strip()

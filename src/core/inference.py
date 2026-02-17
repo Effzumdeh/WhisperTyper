@@ -56,8 +56,54 @@ class InferenceService:
                     
                     logger.info(f"Selected compute type: {compute_type} for model: {model_size}")
                     
-                    # Check for cached model in our portable/appdata dir
                     download_root = str(config_manager.paths.models_dir)
+                    
+                    # --- Experimental AMD HIP Handling ---
+                    use_hip = getattr(config_manager.config, "enable_amd_hip", False)
+                    hip_loaded = False
+                    
+                    if use_hip and HardwareManager.is_hip_available():
+                        try:
+                            logger.info("AMD HIP Support Enabled. Attempting to initialize...")
+                            # 1. DLL Injection
+                            hip_path = HardwareManager._get_hip_sdk_path()
+                            if hip_path:
+                                import os
+                                bin_path = os.path.join(hip_path, "bin")
+                                if os.path.isdir(bin_path):
+                                    # Specific to Windows Python 3.8+
+                                    if hasattr(os, "add_dll_directory"):
+                                        os.add_dll_directory(bin_path)
+                                        logger.info(f"Added DLL directory: {bin_path}")
+                                    else:
+                                        # Fallback for older python or non-windows? (Unlikely here)
+                                        os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
+                            
+                            # 2. Attempt Load
+                            logger.info(f"Loading {model_size} on device='cuda' (HIP backend)...")
+                            self.model = WhisperModel(
+                                model_size,
+                                device="cuda",
+                                compute_type="float16", # HIP usually handles float16
+                                download_root=download_root
+                            )
+                            logger.info("Successfully loaded model with AMD HIP acceleration.")
+                            hip_loaded = True
+                        except Exception as e:
+                            logger.error(f"AMD HIP Initialization Failed: {e}")
+                            if "insufficient" in str(e) or "CUDA" in str(e):
+                                logger.error("Hint: This version of 'ctranslate2' seems to be compiled for NVIDIA CUDA. AMD HIP support on Windows currently requires compiling 'ctranslate2' from source with '-DWITH_HIP=ON'.")
+                            
+                            logger.warning("Falling back to standard CPU/Auto mode.")
+                            self.model = None
+                            # Fall through to standard logic
+                    
+                    if hip_loaded:
+                         if on_complete: on_complete(True)
+                         return
+
+                    # --- Standard Loading Strategy (CPU/CUDA-Native) ---
+                    # Check for cached model in our portable/appdata dir
                     
                     # 2. Offline / Cached Loading Strategy
                     # Try loading offline first to avoid Hugging Face API checks (speed + privacy)

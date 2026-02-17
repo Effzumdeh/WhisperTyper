@@ -104,7 +104,10 @@ graph TD
 
 *   **Microphone Permissions:** Ensure WhisperTyper has permission to access your microphone in **Windows Settings > Privacy > Microphone**.
 *   **Antivirus:** Some antivirus software may flag the text injection (keyboard simulation) as suspicious. Add an exception if necessary.
-*   **AMD GPUs:** Native hardware acceleration is currently optimized for NVIDIA (CUDA). AMD GPUs will be detected but will default to CPU mode for stability unless a compatible ROCm environment is manually configured.
+*   **Hardware Acceleration:**
+    *   **NVIDIA (CUDA):** Automatically detected and used (Best Performance).
+    *   **AMD (HIP):** Experimental support available via Settings. Requires [AMD HIP SDK](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) and a custom build of `ctranslate2`. Defaults to CPU if initialization fails.
+    *   **CPU Fallback:** Transparently falls back to CPU for any unsupported hardware, ensuring the app works on any Windows machine.
 
 ---
 
