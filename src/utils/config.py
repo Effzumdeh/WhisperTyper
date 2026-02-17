@@ -15,6 +15,9 @@ class AppConfig(BaseModel):
     initial_prompt: Optional[str] = None
     hallucination_filter: bool = True
     
+    # Experimental
+    enable_amd_hip: bool = False
+    
     # Audio settings
     input_device_id: Optional[int] = None
     input_device_name: Optional[str] = None
