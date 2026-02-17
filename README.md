@@ -1,3 +1,7 @@
+
+> [!NOTE]
+> This software project was completely written with Agentic AI Tool **Google Antigravity** and the **Gemini 3 Pro (high)** model for **educational purposes only** and is **not actively maintained**.
+
 # WhisperTyper
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
