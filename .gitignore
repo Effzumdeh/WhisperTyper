@@ -1,0 +1,27 @@
+# Python / Environments
+__pycache__/
+*.pyc
+.venv/
+.env
+.idea/
+.vscode/
+
+# Build / Distribution
+build/
+dist/
+*.spec
+GEMINI.md
+
+# Application Data & Locals
+src/models/
+*.bin
+logs/
+*.log
+.portable
+data/
+debug_last_recording.wav
+error_log.txt
+
+# OS
+.DS_Store
+Thumbs.db
