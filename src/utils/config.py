@@ -15,6 +15,10 @@ class AppConfig(BaseModel):
     initial_prompt: Optional[str] = None
     hallucination_filter: bool = True
     
+    # Debug / Troubleshooting
+    debug_mode: bool = False
+    force_cpu: bool = False
+    
     # Experimental
     enable_amd_hip: bool = False
     

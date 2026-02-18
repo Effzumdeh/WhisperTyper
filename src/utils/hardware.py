@@ -7,14 +7,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Try to import pynvml for robust NV detection
+try:
+    import pynvml
+    HAS_PYNVML = True
+except ImportError:
+    HAS_PYNVML = False
+
 # Try to import ctranslate2 for CUDA check
 try:
     import ctranslate2
     HAS_CTRANSLATE2 = True
 except ImportError:
     HAS_CTRANSLATE2 = False
-    
-# Try to import torch for VRAM check (if available in environment)
+
+# Try to import torch for VRAM check fallback
 try:
     import torch
     HAS_TORCH = True
@@ -28,6 +35,7 @@ class DeviceProfile:
     recommended_model: str
     recommended_compute: str
     description: str
+    is_nvidia: bool = False
 
 class HardwareManager:
     @staticmethod
@@ -41,17 +49,13 @@ class HardwareManager:
                  return val
         
         # 2. Check default install location: C:\Program Files\AMD\ROCm\*\bin
-        # We need the root, not bin, but bin helps confirm.
         try:
             default_root = Path(r"C:\Program Files\AMD\ROCm")
             if default_root.exists():
-                # Find highest version folder
                 versions = [p for p in default_root.iterdir() if p.is_dir()]
                 if versions:
-                    # Sort by name (usually works for 5.5, 5.7 etc) -> pick last
                     versions.sort(key=lambda p: p.name)
                     latest = versions[-1]
-                    # Check if 'bin' exists inside
                     if (latest / "bin").exists():
                         return str(latest)
         except Exception as e:
@@ -61,106 +65,128 @@ class HardwareManager:
 
     @staticmethod
     def is_hip_available() -> bool:
-        """Checks if AMD HIP SDK appears to be installed."""
         return HardwareManager._get_hip_sdk_path() is not None
 
     @staticmethod
     def get_profile() -> DeviceProfile:
         device_type = "cpu"
         vram_gb = 0.0
+        description = "Standard CPU (No Acceleration)"
+        is_nvidia = False
         
-        # 1. Check CUDA availability (Primary target for faster-whisper/ctranslate2)
-        cuda_available = False
-        if HAS_CTRANSLATE2:
+        # 0. Check NVML first for authoritative Nvidia info (even if CUDA is broken in torch/ctranslate2)
+        if HAS_PYNVML:
             try:
-                count = ctranslate2.get_cuda_device_count()
-                if count > 0:
-                    cuda_available = True
-                    device_type = "cuda"
-            except Exception as e:
-                logger.warning(f"Error checking CUDA devices via ctranslate2: {e}")
+                pynvml.nvmlInit()
+                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                name_bytes = pynvml.nvmlDeviceGetName(handle)
+                # Decode bytes to string if needed (pynvml returns bytes in older, str in newer? usually bytes)
+                if isinstance(name_bytes, bytes):
+                    name = name_bytes.decode("utf-8")
+                else:
+                    name = str(name_bytes)
+                    
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                vram_gb = mem_info.total / (1024**3)
+                is_nvidia = True
+                description = f"{name} ({vram_gb:.1f} GB VRAM)"
                 
-        # 2. Check VRAM if CUDA is available
-        if cuda_available:
-            if HAS_TORCH:
+                # Check CUDA availability properly via ctranslate2
+                try:
+                    if HAS_CTRANSLATE2 and ctranslate2.get_cuda_device_count() > 0:
+                        device_type = "cuda"
+                    else:
+                        description += " - (CUDA API Unavailable)"
+                except:
+                    pass
+                    
+            except Exception as e:
+                logger.debug(f"NVML init failed: {e}")
+        
+        # 1. Fallback to ctranslate2/torch if NVML didn't run or failed
+        if not is_nvidia:
+            if HAS_CTRANSLATE2:
+                try:
+                    count = ctranslate2.get_cuda_device_count()
+                    if count > 0:
+                        device_type = "cuda"
+                        is_nvidia = True # It's CUDA, so it's Nvidia
+                        description = "Nvidia GPU (Generic)"
+                except Exception as e:
+                    logger.warning(f"Error checking CUDA via ctranslate2: {e}")
+
+            # Try to get VRAM via Torch if we haven't got it from NVML
+            if is_nvidia and vram_gb == 0.0 and HAS_TORCH:
                 try:
                     if torch.cuda.is_available():
-                        vram_bytes = torch.cuda.get_device_properties(0).total_memory
-                        vram_gb = vram_bytes / (1024**3)
+                        props = torch.cuda.get_device_properties(0)
+                        vram_gb = props.total_memory / (1024**3)
+                        description = f"{props.name} ({vram_gb:.1f} GB VRAM)"
                 except Exception as e:
                     logger.warning(f"Error getting VRAM via torch: {e}")
-            
-            # Fallback VRAM if torch failed or not present
-            if vram_gb == 0.0:
-                 vram_gb = 4.0 # Assume 4GB safe default for CUDA
-                 
-            return HardwareManager._recommend(device_type, vram_gb)
 
-        # 3. Check for AMD / Other GPU via WMI (Windows)
-        # If we are strictly CPU so far, check if we can see a GPU in WMI to acknowledge presence
-        if device_type == "cpu" and platform.system() == "Windows":
+        # 2. Check for AMD / Other GPU via WMI (Windows) if not Nvidia
+        if device_type == "cpu" and not is_nvidia and platform.system() == "Windows":
              try:
                  import wmi
                  w = wmi.WMI()
                  for video in w.Win32_VideoController():
                      name = video.Name
-                     # Check for AMD/NVIDIA
-                     # Check for AMD/NVIDIA
                      if "AMD" in name or "Radeon" in name:
-                         desc = f"Detected: {name}"
-                         # Check for HIP presence
+                         description = f"Detected: {name}"
                          if HardwareManager.is_hip_available():
-                             desc += " (HIP SDK Detected)"
+                             description += " (HIP SDK Detected)"
                          else:
-                             desc += " (No ROCm/HIP SDK Found)"
+                             description += " (No ROCm/HIP SDK Found)"
 
                          return DeviceProfile(
                              device_type="cpu", 
                              vram_gb=0, 
                              recommended_model="small", 
                              recommended_compute="int8", 
-                             description=desc
+                             description=description,
+                             is_nvidia=False
                          )
                      elif "NVIDIA" in name:
-                         # This implies we failed to detect it via ctranslate2/torch
-                         return DeviceProfile(
-                             device_type="cpu", 
-                             vram_gb=0, 
-                             recommended_model="small", 
-                             recommended_compute="int8", 
-                             description=f"Detected: {name} - (Driver Issue -> Using CPU Mode)"
-                         )
+                         # This implies we failed to detect via NVML AND ctranslate2
+                         is_nvidia = True
+                         description = f"Detected: {name} - (Driver Issue -> Using CPU Mode)"
              except Exception as e:
                  logger.warning(f"WMI check failed: {e}")
 
-        return HardwareManager._recommend("cpu", 0.0)
+        # Recommendations based on data
+        if device_type == "cuda":
+            return HardwareManager._recommend(device_type, vram_gb, description, is_nvidia)
+            
+        return DeviceProfile(
+            device_type="cpu", 
+            vram_gb=vram_gb, 
+            recommended_model="small", 
+            recommended_compute="int8", 
+            description=description,
+            is_nvidia=is_nvidia
+        )
 
     @staticmethod
-    def _recommend(device_type: str, vram_gb: float) -> DeviceProfile:
-        # ... existing logic ...
+    def _recommend(device_type: str, vram_gb: float, description: str, is_nvidia: bool) -> DeviceProfile:
         rec_model = "base"
         rec_compute = "int8"
-        description = "Standard CPU (No Acceleration)"
         
         if device_type == "cuda":
             if vram_gb > 8.0:
                 rec_model = "large-v3"
                 rec_compute = "float16"
-                description = f"NVIDIA GPU ({vram_gb:.1f} GB VRAM)"
             elif vram_gb > 4.0:
                 rec_model = "medium"
                 rec_compute = "float16"
-                description = f"NVIDIA GPU ({vram_gb:.1f} GB VRAM)"
             elif vram_gb > 2.0:
                 rec_model = "small"
                 rec_compute = "int8"
-                description = f"NVIDIA GPU ({vram_gb:.1f} GB VRAM)"
             else:
                 rec_model = "tiny"
                 rec_compute = "int8" 
-                description = f"NVIDIA GPU ({vram_gb:.1f} GB VRAM)"
         
-        return DeviceProfile(device_type, vram_gb, rec_model, rec_compute, description)
+        return DeviceProfile(device_type, vram_gb, rec_model, rec_compute, description, is_nvidia)
 
     @staticmethod
     def get_compute_type(model_size: str) -> str:

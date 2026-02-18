@@ -105,8 +105,22 @@ class SettingsDialog(QDialog):
         self.check_amd_hip = QCheckBox("Enable Experimental AMD HIP Support")
         self.check_amd_hip.setToolTip("Requires AMD HIP SDK installed. May cause instability. App will fallback to CPU if initialization fails.")
         
+        # Debug / Troubleshooting
+        self.check_debug = QCheckBox("Enable Debug Mode (Log to file + Save rec.wav)")
+        self.check_debug.setToolTip("Writes detailed logs to logs/debug.log and saves last recording to logs/last_recording.wav")
+        
         layout.addWidget(self.check_autostart)
         layout.addWidget(self.check_hallucination)
+        layout.addWidget(self.check_debug)
+        
+        # CPU Override (Only for Nvidia users who might have issues)
+        if hasattr(self.hw_profile, "is_nvidia") and self.hw_profile.is_nvidia:
+            self.check_force_cpu = QCheckBox("Force CPU Mode (Troubleshooting)")
+            self.check_force_cpu.setToolTip("Ignore Nvidia GPU and use CPU. Useful if transcription hangs or crashes.")
+            layout.addWidget(self.check_force_cpu)
+        else:
+            self.check_force_cpu = None
+            
         layout.addWidget(self.check_amd_hip)
         
         # Advanced / Vocab
@@ -305,6 +319,10 @@ class SettingsDialog(QDialog):
         self.check_autostart.setChecked(cfg.autostart)
         self.check_hallucination.setChecked(cfg.hallucination_filter)
         self.check_amd_hip.setChecked(getattr(cfg, "enable_amd_hip", False))
+        self.check_debug.setChecked(getattr(cfg, "debug_mode", False))
+        
+        if self.check_force_cpu:
+            self.check_force_cpu.setChecked(getattr(cfg, "force_cpu", False))
         
         # Prompt
         if cfg.initial_prompt:
@@ -345,6 +363,18 @@ class SettingsDialog(QDialog):
         cfg.autostart = self.check_autostart.isChecked()
         cfg.hallucination_filter = self.check_hallucination.isChecked()
         cfg.enable_amd_hip = self.check_amd_hip.isChecked()
+        
+        # Debug
+        old_debug = getattr(cfg, "debug_mode", False)
+        new_debug = self.check_debug.isChecked()
+        cfg.debug_mode = new_debug
+        
+        if old_debug != new_debug:
+             from src.utils.logger import update_logging_level
+             update_logging_level(new_debug)
+             
+        if self.check_force_cpu:
+            cfg.force_cpu = self.check_force_cpu.isChecked()
         
         # Prompt
         prompt = self.text_prompt.toPlainText().strip()
