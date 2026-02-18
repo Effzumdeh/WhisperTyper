@@ -82,6 +82,22 @@ class SettingsDialog(QDialog):
         self.combo_model.setToolTip("Select AI Model. \nTiny/Base: Fast, less accurate. \nMedium/Large: Accurate, slower.")
         form_layout.addRow("Model Accuracy:", self.combo_model)
         
+        # Compute Device
+        self.combo_compute_device = QComboBox()
+        self.combo_compute_device.addItem("Auto / Smart Selection", 0)
+        
+        # Populate with hardware info if available
+        # This is a simple list for now
+        if hasattr(self.hw_profile, "is_nvidia"):
+             # We can't easily enumerate ALL devices from here without plumbing, 
+             # but we can offer "Force CPU" vs "Auto" (which usually means GPU).
+             # The existing "Force CPU" checkbox is redundant with this, but let's keep it for now?
+             # Actually, let's replace the checkbox with this dropdown if we can.
+             pass
+             
+        self.combo_compute_device.addItem("Force CPU", 1)
+        form_layout.addRow("Inference Device:", self.combo_compute_device)
+        
         # Microphone
         self.combo_device = QComboBox()
         form_layout.addRow("Microphone:", self.combo_device)
@@ -105,9 +121,13 @@ class SettingsDialog(QDialog):
         self.check_amd_hip = QCheckBox("Enable Experimental AMD HIP Support")
         self.check_amd_hip.setToolTip("Requires AMD HIP SDK installed. May cause instability. App will fallback to CPU if initialization fails.")
         
+<<<<<<< Updated upstream
+        layout.addWidget(self.check_autostart)
+        layout.addWidget(self.check_hallucination)
+=======
         # Debug / Troubleshooting
-        self.check_debug = QCheckBox("Enable Debug Mode (Log to file + Save rec.wav)")
-        self.check_debug.setToolTip("Writes detailed logs to logs/debug.log and saves last recording to logs/last_recording.wav")
+        self.check_debug = QCheckBox("Enable Debug Mode")
+        self.check_debug.setToolTip("Sets log level to DEBUG in logs/whisper_typer.log and saves last recording to logs/last_recording.wav")
         
         layout.addWidget(self.check_autostart)
         layout.addWidget(self.check_hallucination)
@@ -115,12 +135,14 @@ class SettingsDialog(QDialog):
         
         # CPU Override (Only for Nvidia users who might have issues)
         if hasattr(self.hw_profile, "is_nvidia") and self.hw_profile.is_nvidia:
-            self.check_force_cpu = QCheckBox("Force CPU Mode (Troubleshooting)")
-            self.check_force_cpu.setToolTip("Ignore Nvidia GPU and use CPU. Useful if transcription hangs or crashes.")
-            layout.addWidget(self.check_force_cpu)
+            # self.check_force_cpu = QCheckBox("Force CPU Mode (Troubleshooting)")
+            # self.check_force_cpu.setToolTip("Ignore Nvidia GPU and use CPU. Useful if transcription hangs or crashes.")
+            # layout.addWidget(self.check_force_cpu)
+            self.check_force_cpu = None # Deprecated by dropdown
         else:
             self.check_force_cpu = None
             
+>>>>>>> Stashed changes
         layout.addWidget(self.check_amd_hip)
         
         # Advanced / Vocab
@@ -296,12 +318,18 @@ class SettingsDialog(QDialog):
         if idx >= 0: self.combo_lang.setCurrentIndex(idx)
         else: self.combo_lang.setCurrentIndex(0)
         
-        # Model
-        # If user has set a model, use it.
-        # If default, use recommended logic if possible?
         # But config has "base" default. 
         # If hardware recommends "large", we should probably show "large" if config matches recommended?
         # Or just show config.
+        
+        # Device Mapping (Legacy Checkbox compat)
+        # If force_cpu is True, set combo to 1
+        if getattr(cfg, "force_cpu", False):
+             self.combo_compute_device.setCurrentIndex(1)
+        else:
+             self.combo_compute_device.setCurrentIndex(0)
+
+        idx = self.combo_model.findText(cfg.model_size)
         # Phase 6: "Default to recommended_model" from HardwareManager
         # We did this in init sort of.
         
@@ -319,10 +347,6 @@ class SettingsDialog(QDialog):
         self.check_autostart.setChecked(cfg.autostart)
         self.check_hallucination.setChecked(cfg.hallucination_filter)
         self.check_amd_hip.setChecked(getattr(cfg, "enable_amd_hip", False))
-        self.check_debug.setChecked(getattr(cfg, "debug_mode", False))
-        
-        if self.check_force_cpu:
-            self.check_force_cpu.setChecked(getattr(cfg, "force_cpu", False))
         
         # Prompt
         if cfg.initial_prompt:
@@ -364,6 +388,8 @@ class SettingsDialog(QDialog):
         cfg.hallucination_filter = self.check_hallucination.isChecked()
         cfg.enable_amd_hip = self.check_amd_hip.isChecked()
         
+<<<<<<< Updated upstream
+=======
         # Debug
         old_debug = getattr(cfg, "debug_mode", False)
         new_debug = self.check_debug.isChecked()
@@ -373,9 +399,20 @@ class SettingsDialog(QDialog):
              from src.utils.logger import update_logging_level
              update_logging_level(new_debug)
              
-        if self.check_force_cpu:
-            cfg.force_cpu = self.check_force_cpu.isChecked()
+        # Device
+        dev_idx = self.combo_compute_device.currentIndex()
+        if dev_idx == 1:
+            cfg.force_cpu = True
+            cfg.device_id = 0 
+        else:
+            cfg.force_cpu = False
+            cfg.device_id = 0
         
+        if self.check_force_cpu:
+            # Sync checkbox if it exists (legacy)
+            pass
+        
+>>>>>>> Stashed changes
         # Prompt
         prompt = self.text_prompt.toPlainText().strip()
         cfg.initial_prompt = prompt if prompt else None

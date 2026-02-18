@@ -272,26 +272,21 @@ class AppController(QObject):
         logger.info(f"Captured audio blocks: {len(audio_data)}")
         
         # DEBUG: Save WAV
-        if config_manager.config.debug_mode:
-            try:
-                import wave
-                import struct
-                # scale float32 to int16
-                audio_int16 = (audio_data * 32767).astype(int)
-                audio_int16 = np.clip(audio_int16, -32768, 32767)
-                
-                log_dir = config_manager.paths.data_dir / "logs"
-                log_dir.mkdir(parents=True, exist_ok=True)
-                wav_path = log_dir / "last_recording.wav"
-                
-                with wave.open(str(wav_path), "w") as f:
-                    f.setnchannels(1)
-                    f.setsampwidth(2)
-                    f.setframerate(16000)
-                    f.writeframes(audio_int16.tobytes())
-                logger.debug(f"Saved debug recording to {wav_path}")
-            except Exception as e:
-                logger.error(f"Failed to save debug wav: {e}")
+        try:
+            import wave
+            import struct
+            # scale float32 to int16
+            audio_int16 = (audio_data * 32767).astype(int)
+            audio_int16 = np.clip(audio_int16, -32768, 32767)
+            
+            with wave.open("debug_last_recording.wav", "w") as f:
+                f.setnchannels(1)
+                f.setsampwidth(2)
+                f.setframerate(16000)
+                f.writeframes(audio_int16.tobytes())
+            logger.info(f"Saved debug recording to {os.path.abspath('debug_last_recording.wav')}")
+        except Exception as e:
+            logger.error(f"Failed to save debug wav: {e}")
         
         # Start Inference
         self.ui_update_signal.emit("processing", "Processing...")
@@ -359,29 +354,23 @@ class AppController(QObject):
         self._restart_audio()
 
     def _run_inference(self, audio_data):
-        try:
-            text = self.inference_service.transcribe(
-                audio_data,
-                language=config_manager.config.language if config_manager.config.language != "auto" else None,
-                initial_prompt=config_manager.config.initial_prompt
-            )
-            logger.info(f"Inference finished. Text: '{text}'")
+        text = self.inference_service.transcribe(
+            audio_data,
+            language=config_manager.config.language if config_manager.config.language != "auto" else None,
+            initial_prompt=config_manager.config.initial_prompt
+        )
+        logger.info(f"Inference finished. Text: '{text}'")
+        
+        if text:
+            # Inject Text
+            # We need to run this on main thread? 
+            # pynput keyboard controller works from background threads usually.
+            # But let's be safe. TextInjector seems safe.
+            self.text_injector.inject_text(text)
+        else:
+            logger.info("Transcribed text is empty.")
             
-            if text:
-                # Inject Text
-                self.text_injector.inject_text(text)
-            else:
-                logger.info("Transcribed text is empty.")
-                
-            self.ui_update_signal.emit("idle", "Ready")
-            
-        except Exception as e:
-            logger.error(f"Inference Error: {e}")
-            self.ui_update_signal.emit("error", "Error: Transcription Failed")
-            # We could emit the specific error but "Transcription Failed" is cleaner for overlay
-            # Optionally show brief error if it's short?
-            # self.ui_update_signal.emit("error", f"Err: {str(e)[:20]}") 
-            # Sticking to safe generic message for overlay, logs have details.
+        self.ui_update_signal.emit("idle", "Ready")
 
     def _on_panic(self):
         if self.is_recording:

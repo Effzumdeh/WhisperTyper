@@ -51,13 +51,16 @@ class InferenceService:
                     
                     # Resolve paths
                     model_size = config_manager.config.model_size
-
-                    # Hardware Profile
-                    profile = HardwareManager.get_profile()
-                    force_cpu = config_manager.config.force_cpu
+                    # Auto-determine compute type to ensure safety and performance
+                    compute_type = HardwareManager.get_compute_type(model_size)
                     
+<<<<<<< Updated upstream
+                    logger.info(f"Selected compute type: {compute_type} for model: {model_size}")
+=======
+                    # Compute Type & Device Logic
                     # Compute Type & Device Logic
                     device = "auto"
+                    device_index = getattr(config_manager.config, "device_id", 0)
                     compute_type = config_manager.config.compute_type 
                     
                     if force_cpu:
@@ -73,7 +76,8 @@ class InferenceService:
                         else:
                              compute_type = HardwareManager.get_compute_type(model_size)
                     
-                    logger.info(f"Loading Model: {model_size}, Device: {device}, Compute: {compute_type}")
+                    logger.info(f"Loading Model: {model_size}, Device: {device} (Index: {device_index}), Compute: {compute_type}")
+>>>>>>> Stashed changes
                     
                     download_root = str(config_manager.paths.models_dir)
                     
@@ -103,6 +107,7 @@ class InferenceService:
                             self.model = WhisperModel(
                                 model_size,
                                 device="cuda",
+                                device_index=0, # HIP usually only supports 0 or requires env vars
                                 compute_type="float16", # HIP usually handles float16
                                 download_root=download_root
                             )
@@ -130,7 +135,12 @@ class InferenceService:
                         logger.info(f"Attempting to load {model_size} from local cache...")
                         self.model = WhisperModel(
                             model_size, 
-                            device=device, 
+<<<<<<< Updated upstream
+                            device="auto", # auto-detect CUDA/CPU
+=======
+                            device=device,
+                            device_index=device_index,
+>>>>>>> Stashed changes
                             compute_type=compute_type,
                             download_root=download_root,
                             local_files_only=True
@@ -140,7 +150,12 @@ class InferenceService:
                         logger.info(f"Local load failed ({e}). Proceeding to download/online check...")
                         self.model = WhisperModel(
                             model_size, 
-                            device=device, 
+<<<<<<< Updated upstream
+                            device="auto", 
+=======
+                            device=device,
+                            device_index=device_index,
+>>>>>>> Stashed changes
                             compute_type=compute_type,
                             download_root=download_root,
                             local_files_only=False
@@ -170,44 +185,54 @@ class InferenceService:
         """
         if self.model is None:
             logger.error("Model not loaded.")
-            raise RuntimeError("Model not loaded")
+            return ""
             
-        # Normalize audio if volume is low
-        max_amp = np.max(np.abs(audio_data))
-        if max_amp > 0 and max_amp < 0.5:
-            scaling_factor = 0.9 / max_amp
-            audio_data = audio_data * scaling_factor
-        
-        if language is None:
-            config_lang = config_manager.config.language
-            language = config_lang if config_lang != "auto" else None
+        try:
+            # Normalize audio if volume is low
+            # Whisper works best with normalized audio (-1 to 1)
+            # If max amplitude is very low (e.g. < 0.1), boost it.
+            max_amp = np.max(np.abs(audio_data))
+            if max_amp > 0 and max_amp < 0.5:
+                # Scale to target peak of 0.9
+                scaling_factor = 0.9 / max_amp
+                audio_data = audio_data * scaling_factor
+                logger.info(f"Audio normalized. scaling_factor: {scaling_factor:.2f}, new max: {np.max(np.abs(audio_data)):.2f}")
             
-        if initial_prompt is None:
-            initial_prompt = config_manager.config.initial_prompt
+            # Use explicit args or config defaults
+            # Note: config default for language might be "auto" -> None
+            if language is None:
+                config_lang = config_manager.config.language
+                language = config_lang if config_lang != "auto" else None
+                
+            if initial_prompt is None:
+                initial_prompt = config_manager.config.initial_prompt
 
-        logger.info(f"Transcribing... Language: {language}, Task: transcribe")
+            logger.info(f"Transcribing... Language: {language}, Task: transcribe")
 
-        # No try/except here - let it propagate to Worker
-        segments, info = self.model.transcribe(
-            audio_data,
-            beam_size=5,
-            language=language,
-            task="transcribe",
-            initial_prompt=initial_prompt,
-            condition_on_previous_text=False
-        )
-        
-        text_segments = []
-        for segment in segments:
-            text_segments.append(segment.text)
+            segments, info = self.model.transcribe(
+                audio_data,
+                beam_size=5,
+                language=language,
+                task="transcribe", # FORCE TRANSCRIBE (No translation)
+                initial_prompt=initial_prompt,
+                condition_on_previous_text=False
+            )
             
-        full_text = " ".join(text_segments).strip()
-        
-        # Hallucination Filter
-        if config_manager.config.hallucination_filter:
-            full_text = self._filter_hallucinations(full_text)
+            text_segments = []
+            for segment in segments:
+                text_segments.append(segment.text)
+                
+            full_text = " ".join(text_segments).strip()
             
-        return full_text
+            # Hallucination Filter
+            if config_manager.config.hallucination_filter:
+                full_text = self._filter_hallucinations(full_text)
+                
+            return full_text
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            return ""
 
     def _filter_hallucinations(self, text: str) -> str:
         """
