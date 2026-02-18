@@ -15,10 +15,14 @@ class AppConfig(BaseModel):
     initial_prompt: Optional[str] = None
     hallucination_filter: bool = True
     
+<<<<<<< Updated upstream
+=======
     # Debug / Troubleshooting
     debug_mode: bool = False
     force_cpu: bool = False
+    device_id: int = 0 # 0=Auto, 1=GPU0, 2=GPU1 etc. (Implementation specific mapping)
     
+>>>>>>> Stashed changes
     # Experimental
     enable_amd_hip: bool = False
     
@@ -34,7 +38,7 @@ class PathManager:
     def __init__(self):
         self.is_portable = self._detect_portable()
         self.app_name = "WhisperTyper"
-        self.app_author = "Florian" # Adjust if needed
+        self.app_author = "Effzumdeh" # Updated from Florian
         
         if self.is_portable:
             base_dir = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(os.getcwd())
