@@ -52,17 +52,17 @@ class InferenceService:
                     # Resolve paths
                     model_size = config_manager.config.model_size
                     # Auto-determine compute type to ensure safety and performance
-                    compute_type = HardwareManager.get_compute_type(model_size)
+                    # compute_type = HardwareManager.get_compute_type(model_size) # We use config or recalculate?
+                    # The conflict had specific logic.
                     
-<<<<<<< Updated upstream
-                    logger.info(f"Selected compute type: {compute_type} for model: {model_size}")
-=======
-                    # Compute Type & Device Logic
                     # Compute Type & Device Logic
                     device = "auto"
                     device_index = getattr(config_manager.config, "device_id", 0)
                     compute_type = config_manager.config.compute_type 
+                    force_cpu = getattr(config_manager.config, "force_cpu", False)
                     
+                    profile = HardwareManager.get_profile()
+
                     if force_cpu:
                         logger.info("Force CPU Mode enabled. Ignoring GPU.")
                         device = "cpu"
@@ -77,7 +77,6 @@ class InferenceService:
                              compute_type = HardwareManager.get_compute_type(model_size)
                     
                     logger.info(f"Loading Model: {model_size}, Device: {device} (Index: {device_index}), Compute: {compute_type}")
->>>>>>> Stashed changes
                     
                     download_root = str(config_manager.paths.models_dir)
                     
@@ -135,12 +134,8 @@ class InferenceService:
                         logger.info(f"Attempting to load {model_size} from local cache...")
                         self.model = WhisperModel(
                             model_size, 
-<<<<<<< Updated upstream
-                            device="auto", # auto-detect CUDA/CPU
-=======
                             device=device,
                             device_index=device_index,
->>>>>>> Stashed changes
                             compute_type=compute_type,
                             download_root=download_root,
                             local_files_only=True
@@ -150,12 +145,8 @@ class InferenceService:
                         logger.info(f"Local load failed ({e}). Proceeding to download/online check...")
                         self.model = WhisperModel(
                             model_size, 
-<<<<<<< Updated upstream
-                            device="auto", 
-=======
                             device=device,
                             device_index=device_index,
->>>>>>> Stashed changes
                             compute_type=compute_type,
                             download_root=download_root,
                             local_files_only=False
@@ -173,15 +164,7 @@ class InferenceService:
 
     def transcribe(self, audio_data: np.ndarray, language: Optional[str] = None, initial_prompt: Optional[str] = None) -> str:
         """
-        Transcribes the given audio data.
-        
-        Args:
-            audio_data: Numpy array of shape (N,) or (N, 1), float32.
-            language: Language code (e.g. "en", "de") or None for auto.
-            initial_prompt: Context string for Whisper.
-            
-        Returns:
-            The transcribed text.
+        Transcribes the given audio data (Full Transcription).
         """
         if self.model is None:
             logger.error("Model not loaded.")
@@ -189,17 +172,12 @@ class InferenceService:
             
         try:
             # Normalize audio if volume is low
-            # Whisper works best with normalized audio (-1 to 1)
-            # If max amplitude is very low (e.g. < 0.1), boost it.
             max_amp = np.max(np.abs(audio_data))
             if max_amp > 0 and max_amp < 0.5:
-                # Scale to target peak of 0.9
                 scaling_factor = 0.9 / max_amp
                 audio_data = audio_data * scaling_factor
-                logger.info(f"Audio normalized. scaling_factor: {scaling_factor:.2f}, new max: {np.max(np.abs(audio_data)):.2f}")
+                logger.debug(f"Audio normalized. scaling_factor: {scaling_factor:.2f}")
             
-            # Use explicit args or config defaults
-            # Note: config default for language might be "auto" -> None
             if language is None:
                 config_lang = config_manager.config.language
                 language = config_lang if config_lang != "auto" else None
@@ -232,6 +210,59 @@ class InferenceService:
             
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
+            return ""
+
+    def transcribe_partial(self, audio_data: np.ndarray) -> str:
+        """
+        Runs a fast, partial transcription for Live Preview.
+        Sacrifices accuracy for speed.
+        """
+        if self.model is None:
+            return ""
+        
+        try:
+            # Quick check for silence/empty
+            if len(audio_data) < 16000 * 0.5: # < 0.5s
+                 return ""
+                 
+            # Note: We likely skip normalization for partials to save CPU, 
+            # unless it's critical. Whisper handles volume well usually.
+            
+            config_lang = config_manager.config.language
+            language = config_lang if config_lang != "auto" else None
+            
+            # Optimize options for speed
+            # beam_size=1 (Greedy)
+            # vad_filter=False (Avoid VAD overhead)
+            # condition_on_previous_text=False
+            
+            segments, info = self.model.transcribe(
+                audio_data,
+                beam_size=1,
+                best_of=1, # Ensure greedy
+                language=language,
+                task="transcribe",
+                initial_prompt=None, # No prompt for partials to avoid context bias loops? Or keep it? keeping None is safer for raw speed.
+                condition_on_previous_text=False,
+                vad_filter=False,
+                temperature=0.0 # Greedy
+            )
+            
+            text_segments = []
+            for segment in segments:
+                text_segments.append(segment.text)
+                
+            full_text = " ".join(text_segments).strip()
+            
+            # Must filter hallucinations even on partials
+            if config_manager.config.hallucination_filter:
+                full_text = self._filter_hallucinations(full_text)
+                
+            return full_text
+            
+        except Exception as e:
+            # Low log level for partial errors preventing log spam
+            logger.debug(f"Partial transcription failed: {e}")
             return ""
 
     def _filter_hallucinations(self, text: str) -> str:

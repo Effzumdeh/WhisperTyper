@@ -123,6 +123,41 @@ class AudioService:
             self.is_capturing = True
             self.captured_blocks = [] # Clear previous explicit capture
 
+    def get_current_buffer(self) -> np.ndarray:
+        """
+        Returns a copy of the currently captured audio (thread-safe).
+        This does NOT include pre-roll to keep it lightweight for preview,
+        or we can include it if desired. Preview usually needs context?
+        Let's include pre-roll for better partial transcription context.
+        """
+        with self._lock:
+            if not self.is_capturing:
+                 return np.array([], dtype=np.float32)
+            
+            # Fast shallow copy to minimize blocking the audio callback
+            # We copy the list structure, the numpy arrays themselves are not copied yet
+            blocks_snapshot = list(self.captured_blocks)
+            preroll_snapshot = list(self.pre_roll_snapshot)
+            
+        # Heavy concatenation happens outside the lock
+        full_blocks = preroll_snapshot + blocks_snapshot
+        if not full_blocks:
+             return np.array([], dtype=np.float32)
+             
+        try:
+            full_audio_native = np.concatenate(full_blocks)
+            
+            # Resample to 16k if needed (Critical for Live Preview correctness)
+            if self.device_sample_rate != self.target_sample_rate:
+                # We reuse the existing _resample method
+                return self._resample(full_audio_native, self.device_sample_rate, self.target_sample_rate)
+            else:
+                return full_audio_native
+                
+        except Exception as e:
+            logger.error(f"Error concatenating/resampling audio buffer: {e}")
+            return np.array([], dtype=np.float32)
+
     def stop_capture(self, pre_roll_sec: float = 0.5) -> np.ndarray:
         """
         Stops capture, resamples, and returns the audio with pre-roll.
@@ -145,7 +180,7 @@ class AudioService:
             # Log raw stats
             if len(full_audio_native) > 0:
                 max_amp = np.max(np.abs(full_audio_native))
-                logger.info(f"Audio raw capture. Native Samples: {len(full_audio_native)}, Native Rate: {self.device_sample_rate}, Max Amp: {max_amp:.4f}")
+                logger.debug(f"Audio raw capture. Native Samples: {len(full_audio_native)}, Native Rate: {self.device_sample_rate}, Max Amp: {max_amp:.4f}")
             
             # Resample to 16k if needed
             if self.device_sample_rate != self.target_sample_rate:
