@@ -15,14 +15,14 @@ class AppConfig(BaseModel):
     initial_prompt: Optional[str] = None
     hallucination_filter: bool = True
     
-<<<<<<< Updated upstream
-=======
+    # Phase 14: Live Preview
+    live_preview: bool = False
+
     # Debug / Troubleshooting
     debug_mode: bool = False
     force_cpu: bool = False
     device_id: int = 0 # 0=Auto, 1=GPU0, 2=GPU1 etc. (Implementation specific mapping)
     
->>>>>>> Stashed changes
     # Experimental
     enable_amd_hip: bool = False
     

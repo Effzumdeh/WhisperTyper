@@ -35,9 +35,7 @@ def setup_logging():
     root_logger.addHandler(file_handler)
     
     logging.info(f"Logging initialized. Log file: {log_file}")
-<<<<<<< Updated upstream
-=======
-    
+
 def update_logging_level(debug: bool):
     """
     Updates the logging level based on debug mode.
@@ -53,4 +51,3 @@ def update_logging_level(debug: bool):
     else:
         root_logger.setLevel(logging.INFO)
         logging.info("Debug logging disabled (Level: INFO).")
->>>>>>> Stashed changes

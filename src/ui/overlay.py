@@ -92,18 +92,62 @@ class OverlayWidget(QWidget):
         if state == "idle":
             self.update_icon(Resources.SVG_MIC_IDLE)
             self.status_label.setText("Ready")
+            self.status_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
         elif state == "recording":
             self.update_icon(Resources.SVG_MIC_RECORDING)
-            self.status_label.setText("Listening..." if not message else message)
+            # Only reset text if we are just entering recording state and don't have a message override
+            if not message:
+                 self.status_label.setText("Listening...")
+            else:
+                 self.status_label.setText(message)
+            self.status_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
         elif state == "processing":
             self.update_icon(Resources.SVG_SPINNER)
             self.status_label.setText("Processing..." if not message else message)
+            self.status_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
             self.spinner_timer.start(50)
         elif state == "error":
              self.update_icon(Resources.SVG_MIC_IDLE) # Or error icon
              self.status_label.setText(f"Error: {message}")
+             self.status_label.setStyleSheet("color: #ff5555; font-weight: bold; font-size: 14px;")
              
+        self.adjustSize()
+        self._center_position()
         self.update() # Trigger repaint for background color
+
+    @Slot(str)
+    def set_preview_text(self, text: str):
+        """Updates the overlay with live preview text."""
+        if self._state != "recording":
+            return
+            
+        if not text:
+            # If empty, revert to Listening...
+            if self.status_label.text() != "Listening...":
+                self.status_label.setText("Listening...")
+                self.status_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+                self.adjustSize()
+                self._center_position()
+            return
+            
+        # Avoid repainting if text matches
+        if self.status_label.text() == text:
+            return
+            
+        self.status_label.setText(text)
+        # Visual cue for preview: Italic and slightly gray?
+        self.status_label.setStyleSheet("color: #dddddd; font-style: italic; font-size: 14px;")
+        
+        self.adjustSize()
+        self._center_position()
+
+    @Slot()
+    def clear_preview(self):
+        if self._state == "recording":
+             self.status_label.setText("Listening...")
+             self.status_label.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+             self.adjustSize()
+             self._center_position()
 
     def update_icon(self, svg_data):
         self.icon_label.setPixmap(Resources.get_pixmap(svg_data, 24))
