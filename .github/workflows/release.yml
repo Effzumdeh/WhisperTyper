@@ -1,0 +1,43 @@
+name: Build and Release Windows App
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-publish:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚡ Install uv (Fast Package Manager)
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Install Dependencies
+        run: uv sync
+
+      - name: 🔨 Build Executable with PyInstaller
+        run: uv run build.py 
+
+      - name: 🏷️ Rename Executable with Version
+        run: Rename-Item -Path "dist\WhisperTyper.exe" -NewName "WhisperTyper-${{ github.ref_name }}.exe"
+        
+      - name: 🚀 Create GitHub Release & Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/WhisperTyper-${{ github.ref_name }}.exe
+          generate_release_notes: true
