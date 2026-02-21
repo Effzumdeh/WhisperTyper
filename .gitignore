@@ -28,3 +28,4 @@ error_log.txt
 .DS_Store
 Thumbs.db
 *.lock
+uv.lock
