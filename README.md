@@ -15,25 +15,21 @@ WhisperTyper brings the power of OpenAI's Whisper model directly to your desktop
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-*   **🔒 Privacy First:** Runs locally using `faster-whisper` and local LLMs (Ollama). Your voice/text data never leaves your machine.
-*   **🤖 Smart AI Rewriting (Ollama):** Seamlessly pass your transcribed text through a local LLM to fix grammar, translate languages, or change the tone before it's typed.
-*   **👁️ Live Preview:** Real-time transcription feedback in the overlay as you speak. See exactly what the AI hears before it types.
-*   **🖥️ Smart Overlay:** Non-intrusive, always-on-top overlay that provides visual feedback without stealing focus.
-*   **🚀 Hardware Aware:** Automatically detects NVIDIA GPUs (CUDA) and supports **AMD HIP** acceleration. Falls back to CPU transparently if needed.
-*   **🎙️ Modern Audio:** Advanced filtering for Windows audio devices (prioritizes WASAPI, removes duplicates).
-*   **⚡ Fast & Fluid:** Global Hotkey (`Ctrl+Alt+Shift+S`) to toggle recording instantly. Supports **Hot-Swapping** models without restarting.
-*   **🛠️ User Friendly:** System Tray integration, Smart Language Detection, and Hallucination Filtering.
-*   **🔄 Factory Reset:** Easily restore default settings via the Settings dialog.
-*   **🧠 Smart Hardware Detection:** Prioritizes NVIDIA GPUs (CUDA), supports experimental AMD HIP, and transparently falls back to CPU for reliable performance on any machine.
+*   **Privacy First:** Runs locally using `faster-whisper` and local LLMs (Ollama). Your voice/text data never leaves your machine.
+*   **Smart AI Rewriting:** Pass your transcribed text through a local LLM to fix grammar, translate languages, or change the tone before it's typed.
+*   **Live Preview:** Real-time transcription feedback in the overlay as you speak. See exactly what the AI hears before it types.
+*   **Hardware Aware:** Automatically detects NVIDIA GPUs (CUDA) and supports AMD HIP acceleration. Falls back to CPU transparently if needed.
+*   **Fast & Fluid:** Global Hotkey (`Ctrl+Alt+Shift+S`) to toggle recording instantly. Supports hot-swapping models without restarting.
+*   **Other tools:** Advanced audio filtering, System Tray integration, Smart Language Detection, and Hallucination Filtering.
 
 ---
 
 ## 📥 Installation
 
 ### For Users
-1.  Download the latest release (`.exe` or `.zip`) from the [Releases](#) page.
+1.  Download the latest release (`.exe` or `.zip`) from the [Releases](https://github.com/Effzumdeh/WhisperTyper/releases) page.
 2.  Run `WhisperTyper.exe`.
 3.  The app runs in the system tray. Use **Ctrl+Alt+Shift+S** to start dictating!
 
@@ -78,7 +74,7 @@ graph TD
         Audio --> |Raw Data| Inference[Inference Service]
         Inference --> |Data| Whisper[Faster-Whisper Model]
         Whisper --> |Text| Inference
-        Inference --> |Text| LLM[LLM Client (Ollama)]
+        Inference --> |Text| LLM["LLM Client (Ollama)"]
         LLM --> |Refined Text| Injector[Text Injector]
     end
     
@@ -108,11 +104,10 @@ graph TD
 *   **Microphone Permissions:** Ensure WhisperTyper has permission to access your microphone in **Windows Settings > Privacy > Microphone**.
 *   **Antivirus:** Some antivirus software may flag the text injection (keyboard simulation) as suspicious. Add an exception if necessary.
 *   **Smart AI Rewriting (Local LLM):** Ensure that you have downloaded and installed [Ollama](https://ollama.com/) and that the service is running locally. You must download a model (like `llama3` or `mistral`) via your terminal (`ollama run llama3`) before the application can select it in Settings.
-*   **Hardware Acceleration:**
-    *   **NVIDIA (CUDA):** Automatically detected and used (Best Performance).
+*   **Hardware Acceleration & Performance:**
+    *   **NVIDIA (CUDA):** Automatically detected and used.
     *   **AMD (HIP):** Experimental support available via Settings. Requires [AMD HIP SDK](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html).
-    *   **Force CPU Mode:** If you experience instability or high GPU usage with Live Preview, you can force CPU mode in Settings (only visible if a GPU is detected).
-    *   **Live Preview:** This feature requires significant resources. If you are on a CPU-only machine, it will be marked as "High CPU Usage" in settings.
+    *   **CPU Mode:** If you experience instability, you can force CPU mode in Settings. Note that **Live Preview** requires significant resources and will show as "High CPU Usage" on a CPU-only setup.
 
 ---
 
