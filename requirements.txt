@@ -157,7 +157,7 @@ tqdm==4.67.3
     # via
     #   faster-whisper
     #   huggingface-hub
-typer==0.24.0
+typer==0.24.1
     # via typer-slim
 typer-slim==0.24.0
     # via huggingface-hub
