@@ -17,7 +17,8 @@ WhisperTyper brings the power of OpenAI's Whisper model directly to your desktop
 
 ## ✨ Key Features
 
-*   **🔒 Privacy First:** Runs locally using `faster-whisper`. Your voice data never leaves your machine.
+*   **🔒 Privacy First:** Runs locally using `faster-whisper` and local LLMs (Ollama). Your voice/text data never leaves your machine.
+*   **🤖 Smart AI Rewriting (Ollama):** Seamlessly pass your transcribed text through a local LLM to fix grammar, translate languages, or change the tone before it's typed.
 *   **👁️ Live Preview:** Real-time transcription feedback in the overlay as you speak. See exactly what the AI hears before it types.
 *   **🖥️ Smart Overlay:** Non-intrusive, always-on-top overlay that provides visual feedback without stealing focus.
 *   **🚀 Hardware Aware:** Automatically detects NVIDIA GPUs (CUDA) and supports **AMD HIP** acceleration. Falls back to CPU transparently if needed.
@@ -77,7 +78,8 @@ graph TD
         Audio --> |Raw Data| Inference[Inference Service]
         Inference --> |Data| Whisper[Faster-Whisper Model]
         Whisper --> |Text| Inference
-        Inference --> |Text| Injector[Text Injector]
+        Inference --> |Text| LLM[LLM Client (Ollama)]
+        LLM --> |Refined Text| Injector[Text Injector]
     end
     
     Injector --> |Key Events| ActiveApp[Active Application]
@@ -105,6 +107,7 @@ graph TD
 
 *   **Microphone Permissions:** Ensure WhisperTyper has permission to access your microphone in **Windows Settings > Privacy > Microphone**.
 *   **Antivirus:** Some antivirus software may flag the text injection (keyboard simulation) as suspicious. Add an exception if necessary.
+*   **Smart AI Rewriting (Local LLM):** Ensure that you have downloaded and installed [Ollama](https://ollama.com/) and that the service is running locally. You must download a model (like `llama3` or `mistral`) via your terminal (`ollama run llama3`) before the application can select it in Settings.
 *   **Hardware Acceleration:**
     *   **NVIDIA (CUDA):** Automatically detected and used (Best Performance).
     *   **AMD (HIP):** Experimental support available via Settings. Requires [AMD HIP SDK](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html).

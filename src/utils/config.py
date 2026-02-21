@@ -16,7 +16,14 @@ class AppConfig(BaseModel):
     hallucination_filter: bool = True
     
     # Phase 14: Live Preview
-    live_preview: bool = False
+    live_preview: bool = True
+
+    # Phase 15: AI Rewriting (Local LLM)
+    llm_enabled: bool = False
+    llm_endpoint: str = "http://localhost:11434"
+    llm_model: str = ""
+    llm_style_preset: str = "Fix Grammar & Spelling"
+    llm_custom_prompt: str = ""
 
     # Debug / Troubleshooting
     debug_mode: bool = False

@@ -1,4 +1,6 @@
 # Python / Environments
+test_*.py
+tests/
 __pycache__/
 *.pyc
 .venv/

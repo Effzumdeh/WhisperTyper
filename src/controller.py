@@ -13,6 +13,7 @@ from pynput import keyboard
 from src.core.audio_service import AudioService
 from src.core.inference import InferenceService
 from src.core.text_injector import TextInjector
+from src.core.llm_processor import LLMClient
 from src.ui.overlay import OverlayWidget
 from src.ui.settings import SettingsDialog
 from src.utils.config import config_manager
@@ -399,6 +400,40 @@ class AppController(QObject):
         
         logger.info(f"Inference finished. Text: '{text}'")
         
+        # Phase 15: AI Rewriting (Local LLM)
+        if text and getattr(config_manager.config, "llm_enabled", False):
+            self.ui_update_signal.emit("processing", "Refining text...")
+            style = getattr(config_manager.config, "llm_style_preset", "Fix Grammar & Spelling")
+            prompt = getattr(config_manager.config, "llm_custom_prompt", "")
+            
+            if style == "Fix Grammar & Spelling":
+                prompt = "Fix grammar and spelling. Output ONLY the corrected text without any extra conversational text."
+            elif style == "Professional Tone":
+                prompt = "Rewrite to sound professional and polite. Output ONLY the rewritten text without any extra conversational text."
+            elif style == "Casual Tone":
+                prompt = "Rewrite to sound casual, friendly, and conversational. Output ONLY the rewritten text without any extra conversational text."
+            elif style == "Concise Summary":
+                prompt = "Summarize the text to be as concise as possible while retaining the core meaning. Output ONLY the summary without any extra conversational text."
+            elif style == "Translate to English":
+                prompt = "Translate the following text to English. Output ONLY the translation without any extra conversational text. If it is already in English, just fix grammar."
+
+                
+            model = getattr(config_manager.config, "llm_model", "")
+            endpoint = getattr(config_manager.config, "llm_endpoint", "http://localhost:11434")
+            
+            refined_text = LLMClient.refine_text(text, prompt, endpoint, model)
+            
+            # If refinement triggered a fallback, text will be identical, or it might just happen to be the same
+            if refined_text == text and prompt:
+                 logger.warning("LLM refinement yielded same result or failed.")
+                 # Optional: short warning beep. We'll play it on genuine errors detected by LLMClient natively,
+                 # but here we can just do it if we suspect a hard fail (e.g., if there's no LLM). 
+                 # Given LLMClient already falls back gracefully, we can trigger a soft error sound.
+                 if not model:
+                      sound.play_error_sound()
+            
+            text = refined_text
+
         if text:
             # Inject Text
             # We need to run this on main thread? 

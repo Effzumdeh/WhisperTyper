@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
     QLineEdit, QCheckBox, QPlainTextEdit, QPushButton, QFormLayout, QWidget,
-    QFrame
+    QFrame, QApplication, QGroupBox, QMessageBox
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QIcon, QKeySequence, QFont
@@ -10,6 +10,8 @@ import sounddevice as sd
 from src.utils.config import config_manager
 from src.ui.resources import Resources
 from src.utils.hardware import HardwareManager
+from src.core.llm_processor import LLMClient
+from PySide6.QtWidgets import QGroupBox, QMessageBox
 
 class HotkeyLineEdit(QLineEdit):
     """Custom QLineEdit to capture hotkeys."""
@@ -156,7 +158,51 @@ class SettingsDialog(QDialog):
         self.text_prompt.setPlaceholderText("Enter uncommon words, names, or technical terms here to improve accuracy...")
         self.text_prompt.setMaximumHeight(80)
         layout.addWidget(self.text_prompt)
+
+        # Phase 15: AI Rewriting (Local LLM)
+        self.group_llm = QGroupBox("AI Rewriting (Local LLM)")
+        self.group_llm.setCheckable(True)
+        self.group_llm.setChecked(False)
+        self.group_llm.toggled.connect(self._on_llm_toggled)
+        llm_layout = QFormLayout(self.group_llm)
         
+        # Endpoint row
+        endpoint_layout = QHBoxLayout()
+        self.line_llm_endpoint = QLineEdit()
+        self.line_llm_endpoint.setPlaceholderText("http://localhost:11434")
+        self.btn_llm_test = QPushButton("Test Connection")
+        self.btn_llm_test.clicked.connect(self._test_llm_connection)
+        endpoint_layout.addWidget(self.line_llm_endpoint)
+        endpoint_layout.addWidget(self.btn_llm_test)
+        llm_layout.addRow("Endpoint URL:", endpoint_layout)
+        
+        # Model
+        self.combo_llm_model = QComboBox()
+        self.combo_llm_model.setEditable(True)
+        llm_layout.addRow("LLM Model:", self.combo_llm_model)
+
+        # Style
+        self.combo_llm_style = QComboBox()
+        self.combo_llm_style.addItems([
+            "Fix Grammar & Spelling", 
+            "Professional Tone", 
+            "Casual Tone",
+            "Concise Summary",
+            "Translate to English",
+            "Custom"
+        ])
+        self.combo_llm_style.currentTextChanged.connect(self._on_llm_style_changed)
+        llm_layout.addRow("Rewrite Style:", self.combo_llm_style)
+        
+        # Custom Prompt
+        self.text_llm_prompt = QPlainTextEdit()
+        self.text_llm_prompt.setPlaceholderText("Enter custom system prompt for rewriting...")
+        self.text_llm_prompt.setMaximumHeight(60)
+        self.text_llm_prompt.setVisible(False)
+        llm_layout.addRow("Custom Prompt:", self.text_llm_prompt)
+        
+        layout.addWidget(self.group_llm)
+
         # Buttons
         btn_layout = QHBoxLayout()
         self.btn_save = QPushButton("Save Settings")
@@ -233,6 +279,34 @@ class SettingsDialog(QDialog):
              
         status_layout.addWidget(status)
         layout.addWidget(status_frame)
+
+    def _on_llm_toggled(self, checked: bool):
+        pass
+
+    def _test_llm_connection(self):
+        endpoint = self.line_llm_endpoint.text().strip()
+        if not endpoint:
+            QMessageBox.warning(self, "Warning", "Please enter an endpoint URL.")
+            return
+            
+        self.btn_llm_test.setEnabled(False)
+        self.btn_llm_test.setText("Testing...")
+        QApplication.processEvents()
+        
+        models = LLMClient.fetch_ollama_models(endpoint)
+        
+        self.btn_llm_test.setEnabled(True)
+        self.btn_llm_test.setText("Test Connection")
+        
+        if models:
+            self.combo_llm_model.clear()
+            self.combo_llm_model.addItems(models)
+            QMessageBox.information(self, "Success", f"Found {len(models)} models.")
+        else:
+            QMessageBox.critical(self, "Error", "Could not fetch models. Check endpoint or Ollama status.")
+
+    def _on_llm_style_changed(self, text: str):
+        self.text_llm_prompt.setVisible(text == "Custom")
 
     def showEvent(self, event):
         """Refresh devices when dialog opens."""
@@ -361,6 +435,23 @@ class SettingsDialog(QDialog):
             self.text_prompt.setPlainText(cfg.initial_prompt)
         else:
             self.text_prompt.clear()
+            
+        # LLM Rewriting
+        self.group_llm.setChecked(getattr(cfg, "llm_enabled", False))
+        self.line_llm_endpoint.setText(getattr(cfg, "llm_endpoint", "http://localhost:11434"))
+        
+        saved_model = getattr(cfg, "llm_model", "")
+        if saved_model:
+            self.combo_llm_model.addItem(saved_model)
+            self.combo_llm_model.setCurrentText(saved_model)
+            
+        saved_style = getattr(cfg, "llm_style_preset", "Fix Grammar & Spelling")
+        idx = self.combo_llm_style.findText(saved_style)
+        if idx >= 0:
+            self.combo_llm_style.setCurrentIndex(idx)
+            
+        self.text_llm_prompt.setPlainText(getattr(cfg, "llm_custom_prompt", ""))
+        self.text_llm_prompt.setVisible(saved_style == "Custom")
 
     def save_settings(self):
         cfg = config_manager.config
@@ -413,6 +504,13 @@ class SettingsDialog(QDialog):
         # Prompt
         prompt = self.text_prompt.toPlainText().strip()
         cfg.initial_prompt = prompt if prompt else None
+        
+        # LLM
+        cfg.llm_enabled = self.group_llm.isChecked()
+        cfg.llm_endpoint = self.line_llm_endpoint.text().strip()
+        cfg.llm_model = self.combo_llm_model.currentText().strip()
+        cfg.llm_style_preset = self.combo_llm_style.currentText()
+        cfg.llm_custom_prompt = self.text_llm_prompt.toPlainText().strip()
         
         config_manager.save_config()
         self.accept()
