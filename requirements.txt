@@ -33,7 +33,7 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
     # via anyio
 faster-whisper==1.2.1
     # via whisper-typer
-filelock==3.24.2
+filelock==3.24.3
     # via huggingface-hub
 flatbuffers==25.12.19
     # via onnxruntime
