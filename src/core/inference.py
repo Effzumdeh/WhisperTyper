@@ -225,8 +225,11 @@ class InferenceService:
             if len(audio_data) < 16000 * 0.5: # < 0.5s
                  return ""
                  
-            # Note: We likely skip normalization for partials to save CPU, 
-            # unless it's critical. Whisper handles volume well usually.
+            # Normalize audio if volume is low (Crucial for live preview to not drop as silence)
+            max_amp = np.max(np.abs(audio_data))
+            if max_amp > 0 and max_amp < 0.5:
+                scaling_factor = 0.9 / max_amp
+                audio_data = audio_data * scaling_factor
             
             config_lang = config_manager.config.language
             language = config_lang if config_lang != "auto" else None
@@ -239,10 +242,9 @@ class InferenceService:
             segments, info = self.model.transcribe(
                 audio_data,
                 beam_size=1,
-                best_of=1, # Ensure greedy
                 language=language,
                 task="transcribe",
-                initial_prompt=None, # No prompt for partials to avoid context bias loops? Or keep it? keeping None is safer for raw speed.
+                initial_prompt=None, # No prompt for partials to avoid context bias loops
                 condition_on_previous_text=False,
                 vad_filter=False,
                 temperature=0.0 # Greedy

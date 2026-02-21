@@ -14,4 +14,5 @@ dependencies = [
     "platformdirs>=4.3.6",
     "wmi>=1.5.1",
     "pywin32>=308",
+    "requests>=2.32.5",
 ]

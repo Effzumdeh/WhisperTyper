@@ -39,6 +39,8 @@ PyInstaller.__main__.run([
     # Collect all binaries for faster-whisper and ctranslate2
     '--collect-all=faster_whisper',
     '--collect-all=ctranslate2',
+    '--collect-all=_sounddevice_data',
+    '--collect-all=av',
     # Collect NVIDIA libs (cublas, cudnn) often managed effectively by keying off 'nvidia'
     '--collect-all=nvidia',
     # Paths
