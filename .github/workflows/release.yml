@@ -37,7 +37,7 @@ jobs:
         run: Rename-Item -Path "dist\WhisperTyper.exe" -NewName "WhisperTyper-${{ github.ref_name }}.exe"
         
       - name: 🚀 Create GitHub Release & Upload Asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/WhisperTyper-${{ github.ref_name }}.exe
           generate_release_notes: true
