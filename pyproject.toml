@@ -5,7 +5,7 @@ description = "A local, privacy-first voice-to-text tool for Windows using faste
 readme = "README.md"
 requires-python = ">=3.10, <3.13"
 dependencies = [
-    "ctranslate2>=4.5.0",
+    "ctranslate2>=4.7.1",
     "sounddevice>=0.5.1",
     "pynput>=1.7.7",
     "faster-whisper>=1.1.0",
